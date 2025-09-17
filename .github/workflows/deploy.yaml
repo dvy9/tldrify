@@ -1,0 +1,98 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy.yaml'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'docker-compose.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+        id: buildx
+
+      - uses: actions/cache@v4
+        id: cache-backend
+        with:
+          path: /tmp/.buildx-cache-backend
+          key: ${{ runner.os }}-backend-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-backend-
+
+      - uses: actions/cache@v4
+        id: cache-frontend
+        with:
+          path: /tmp/.buildx-cache-frontend
+          key: ${{ runner.os }}-frontend-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-frontend-
+
+      - uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-dir: /tmp/.buildx-cache-backend
+          dockerfile: backend/Dockerfile
+          skip-extraction: ${{ steps.cache-backend.outputs.cache-hit }}
+
+      - uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-dir: /tmp/.buildx-cache-frontend
+          dockerfile: frontend/Dockerfile
+          skip-extraction: ${{ steps.cache-frontend.outputs.cache-hit }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          tags: tldrify-backend:latest
+          context: ./backend
+          cache-from: type=gha,scope=tldrify-backend
+          cache-to: type=gha,mode=max,scope=tldrify-backend
+          outputs: type=docker,dest=tldrify-backend.tar
+          platforms: linux/arm64
+
+      - uses: docker/build-push-action@v6
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          tags: tldrify-frontend:latest
+          context: ./frontend
+          cache-from: type=gha,scope=tldrify-frontend
+          cache-to: type=gha,mode=max,scope=tldrify-frontend
+          outputs: type=docker,dest=tldrify-frontend.tar
+          platforms: linux/arm64
+          secrets: |
+            VITE_TURNSTILE_SITE_KEY=${{ secrets.VITE_TURNSTILE_SITE_KEY }}
+
+      - uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USERNAME }}
+          key: ${{ secrets.OCI_KEY }}
+          source: docker-compose.yaml,tldrify-backend.tar,tldrify-frontend.tar
+          target: /opt/app/
+
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OCI_HOST }}
+          username: ${{ secrets.OCI_USERNAME }}
+          key: ${{ secrets.OCI_KEY }}
+          script: |
+            cd /opt/app
+            docker load -i tldrify-backend.tar
+            docker load -i tldrify-frontend.tar
+            docker compose -p tldrify up -d --remove-orphans
+            rm tldrify-backend.tar tldrify-frontend.tar
+            docker system prune -f

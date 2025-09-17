@@ -1,0 +1,22 @@
+services:
+  api:
+    image: tldrify-backend:latest
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+    networks:
+      - app
+
+  web:
+    image: tldrify-frontend:latest
+    depends_on:
+      - api
+    ports:
+      - '80:80'
+    restart: unless-stopped
+    networks:
+      - app
+
+networks:
+  app:
+    driver: bridge

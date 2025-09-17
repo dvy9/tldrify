@@ -7,7 +7,6 @@ from typing import Literal
 
 import requests
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
 from markitdown import MarkItDown
 from openai import OpenAI
 from pydantic import BaseModel, Field, ValidationError
@@ -19,14 +18,6 @@ client = OpenAI(
 )
 md_gemini_25 = MarkItDown(llm_client=client, llm_model="gemini-2.5-flash")
 md_gemini_20 = MarkItDown(llm_client=client, llm_model="gemini-2.0-flash")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # TODO: tighten in prod
-    allow_credentials=True,
-    allow_methods=["POST", "OPTIONS"],
-    allow_headers=["*"],
-)
 
 
 ModelName = Literal["gemini-2.5-flash", "gemini-2.0-flash"]  # TODO: add "gpt-5-nano"
@@ -117,8 +108,8 @@ async def fetch_with_jina(url: str) -> str:
     return text_body
 
 
-@app.post("/summarize", response_model=SummarizeResponse)
-async def summarize_endpoint(
+@app.post("/api/summarize", response_model=SummarizeResponse)
+async def summarize(
     request: Request,
     message: str = Form(...),
     settings: str = Form(...),
@@ -209,3 +200,8 @@ async def summarize_endpoint(
         raise HTTPException(status_code=422, detail="The model did not return a valid response.")
 
     return SummarizeResponse(title=summarized.title, answer=summarized.summary)
+
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok"}

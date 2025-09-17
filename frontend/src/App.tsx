@@ -35,11 +35,7 @@ const summarize = async (req: SummarizeReq): Promise<SummarizeRes> => {
   form.append('turnstileToken', req.turnstileToken)
   if (req.file) form.append('file', req.file)
 
-  const res = await fetch(import.meta.env.VITE_API_URL + '/summarize', {
-    method: 'POST',
-    body: form
-  })
-
+  const res = await fetch('/api/summarize', { method: 'POST', body: form })
   const data = (await res.json().catch(() => ({}))) as {
     title: string
     answer: string

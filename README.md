@@ -1,79 +1,176 @@
-# TL;DR-ify
+# TL;DR-ify 📝✨
 
-Lightweight tool to summarize text, files, and links. Live at [dvy9.github.io/tldrify](https://dvy9.github.io/tldrify).
+A lightweight AI-powered summarization tool that transforms long-form content into concise, digestible recaps. Perfect for students, researchers, and professionals who need quick insights from documents, articles, or text.
 
-## Features
+🔗 **Live Demo**: [tldrify.dvy9.dev](https://tldrify.dvy9.dev)
 
-- Summarize text, files, or URLs
-- Adjustable style & length (100-500 words)
-- Models: Gemini 2.5 Flash, Gemini 2.0 Flash, GPT-5 Nano
-- Local storage via IndexedDB
-- File uploads up to 5 MiB (PDF, Word, Excel/CSV, PPT, EPUB, images, TXT/MD, HTML/XML/JSON)
-- Abuse protection via Turnstile
+## ✨ Features
 
-## Tech Stack
+### Input Flexibility
 
-### Frontend - Vite + React (TS), Tailwind v4 (Origin UI)
+- **Text**: Paste any free-form text directly
+- **URLs**: Summarize web content with intelligent link ingestion
+- **Documents**: Support for PDF, Office docs, CSV, PPT, EPUB, images, and more
 
-- Hash-based routing (`#/new`, `#/s/:id`)
-- IndexedDB (`idb`) for summaries, settings, metadata
+### Customizable Output
 
-### Backend - FastAPI
+- **Writing Style**: Choose from concise, formal, technical, creative, or scientific tones
+- **Length Control**: Adjust summary length from 100-500 words
+- **AI Models**: Select between Gemini 2.5 Flash, Gemini 2.0 Flash, or GPT-5 Nano
 
-- Gemini API (OpenAI-compatible SDK)
-- `markitdown` for file to markdown conversion
-- OpenAPI docs at `/docs`
+### Technical Excellence
 
-### Deployments
+- **Offline Access**: Client-side storage via IndexedDB for previous summaries
+- **Security**: Cloudflare Turnstile protection against abuse
+- **Reliable Processing**: Jina Reader integration for robust URL content extraction
+- **File Handling**: 5 MiB upload limit with server-side validation
 
-- Frontend: GitHub Pages
-- Backend: OCI Container Instance
+## 🏗️ Architecture
 
-## Dev Setup
+```mermaid
+graph LR
+    A[Frontend] --> B[Backend API]
+    B --> C[Cloudflare Turnstile]
+    B --> D[Jina Reader]
+    B --> E[Gemini AI]
+    A --> F[IndexedDB]
+```
 
-### Requirements
+**Technical Stack**:
 
-- Node.js 20+ with `corepack` enabled
+- **Frontend**: Vite + React (TypeScript), Tailwind v4 via Origin UI
+- **Backend**: FastAPI with Python 3.12+
+- **Storage**: IndexedDB for client-side data persistence
+- **Processing**: markitdown for document conversion, Gemini API for summarization
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 20+ & `pnpm` (`corepack enable`)
 - Python 3.12+
-- Gemini API Key, Jina API Key, Turnstile Site & Secret Keys
+- [`uv`](https://docs.astral.sh/uv/getting-started/installation/)
+- API keys for [Gemini](https://ai.google.dev/gemini-api/docs/api-key), [Jina](https://jina.ai/), and [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/get-started/)
 
-### Frontend
+### Installation
 
-```sh
-cd frontend
-cp .env.example .env
-pnpm install
-pnpm dev
+1. **Clone and setup frontend**:
+
+   ```bash
+   cd frontend
+   cp .env.example .env  # Add your VITE_TURNSTILE_SITE_KEY
+   pnpm install
+   pnpm dev
+   ```
+
+2. **Setup backend**:
+
+   ```bash
+   cd backend
+   cp .env.example .env  # Add GEMINI_API_KEY, JINA_API_KEY, TURNSTILE_SECRET_KEY
+   uv sync
+   uv run --env-file=.env uvicorn main:app --reload
+   ```
+
+3. **Access applications**:
+   - Frontend: <http://localhost:5173>
+   - Backend API: <http://localhost:8000>
+   - API Documentation: <http://localhost:8000/docs>
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+**Frontend (.env)**:
+
+```env
+VITE_TURNSTILE_SITE_KEY=your_public_site_key
 ```
 
-### Backend
+**Backend (.env)**:
 
-```sh
-cd backend
-cp .env.example .env
-uv sync
-uv run --env-file=.env uvicorn main:app --reload
+```env
+GEMINI_API_KEY=your_gemini_key
+JINA_API_KEY=your_jina_reader_key
+TURNSTILE_SECRET_KEY=your_turnstile_secret
 ```
 
-- Frontend: [http://localhost:5173](http://localhost:5173)
-- Backend docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+## 📚 API Reference
 
-## API
+### POST `/api/summarize`
 
-### POST `/summarize`
+Summarizes content from text, URLs, or uploaded files.
 
-`multipart/form-data` with fields:
+**Form Data**:
 
-- `message` (string, text or URL)
-- `settings` (JSON: `{ model, writingStyle, mode, maxWords }`)
-- `file` (optional, ≤ 5 MiB)
+| Field            | Type   | Required    | Description                                                                 |
+| ---------------- | ------ | ----------- | --------------------------------------------------------------------------- |
+| `message`        | string | Conditional | Text content or URL to summarize                                            |
+| `settings`       | JSON   | Yes         | `{"model": "gemini-2.5-flash", "writingStyle": "concise", "maxWords": 200}` |
+| `turnstileToken` | string | Yes         | Cloudflare Turnstile verification token                                     |
+| `file`           | file   | Optional    | Document file (≤ 5 MiB)                                                     |
 
-#### Response
+**Example Request**:
+
+```bash
+curl -X POST http://localhost:8000/api/summarize \
+  -F "message=https://example.com/article" \
+  -F 'settings={"model":"gemini-2.5-flash","writingStyle":"concise","maxWords":200}' \
+  -F "turnstileToken=your_verification_token"
+```
+
+**Success Response**:
 
 ```json
-{ "title": "string", "answer": "string" }
+{
+  "title": "Summary Title",
+  "answer": "Concise summary content..."
+}
 ```
 
-## License
+**Error Responses**:
 
-Proprietary / Unlicensed. Contact author for reuse.
+- `400` - Validation error
+- `403` - Turnstile verification failed
+- `413` - File too large
+- `422` - Processing error
+
+## 🛠️ Development
+
+### Frontend Commands
+
+```bash
+pnpm dev      # Development server
+pnpm build    # Production build
+pnpm preview  # Preview production build
+pnpm lint     # Run linting
+```
+
+### Backend Commands
+
+```bash
+uv run --env-file=.env uvicorn main:app --reload  # Development server
+```
+
+### Project Structure
+
+```txt
+frontend/
+  dist/           # Build artifacts (safe to delete)
+  src/            # React application source
+backend/
+  main.py         # FastAPI application and route handlers
+```
+
+## 📄 License
+
+Proprietary - contact the author for reuse permissions.
+
+## 🆘 Troubleshooting
+
+1. **Missing environment variables** will cause `500` errors - ensure all keys are set
+2. **Large files** (>5 MiB) will be rejected with `413` status
+3. **Invalid Turnstile tokens** return `403` errors
+4. **Build issues** - delete `frontend/dist/` and rebuild
+
+For additional support, check the API documentation at `/docs` when running locally.
